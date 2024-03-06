@@ -22,6 +22,10 @@ variable "ec2_count" {
   type    = number
   default = 3
 }
+variable "private_ec2_count" {
+  type = number
+  default = 1
+}
 
 variable "instance_type" {
   type    = string
@@ -33,7 +37,16 @@ variable "key_name" {
   default = "tfIntroKey"
 }
 
-variable "ami_id" {
-  type    = string
-  default = "ami-0505148b3591e4c07"
+variable "public_ami_ids" {
+  type    = list(string)
+  default = ["ami-0cc57479ea6d83aa9", "ami-06026748933655f1b", "ami-0c709bd687437111f"]
+}
+variable "privare_ami_id" {
+  type = string
+  default = "ami-0cf378ffbd4444374"
+}
+
+variable "heating_ami" {
+  type = string
+  default = "value"
 }

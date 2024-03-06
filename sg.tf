@@ -18,6 +18,25 @@ module "HTTP_sg" {
   ingress_cidr_blocks = ["0.0.0.0/0"]
 }
 
+resource "aws_security_group_rule" "allow_https_in" {
+  type              = "ingress"
+  from_port         = 443
+  to_port           = 443
+  protocol          = "tcp"
+  cidr_blocks       = ["0.0.0.0/0"]
+  ipv6_cidr_blocks  = ["::/0"]
+  security_group_id = module.HTTP_sg.security_group_id
+}
+resource "aws_security_group_rule" "allow_https_out" {
+  type              = "egress"
+  from_port         = 443
+  to_port           = 443
+  protocol          = "tcp"
+  cidr_blocks       = ["0.0.0.0/0"]
+  ipv6_cidr_blocks  = ["::/0"]
+  security_group_id = module.HTTP_sg.security_group_id
+}
+
 resource "aws_vpc_security_group_ingress_rule" "allow_tls_ipv4" {
   security_group_id = module.ssg_sg.security_group_id
   cidr_ipv4         = "0.0.0.0/0"

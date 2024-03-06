@@ -27,7 +27,7 @@ module "ec2_instance" {
   monitoring                  = true
   vpc_security_group_ids      = [module.ssg_sg.security_group_id, module.HTTP_sg.security_group_id]
   subnet_id                   = module.vpc.public_subnets[count.index]
-  ami                         = var.ami_id
+  ami                         = var.public_ami_ids[count.index]
   associate_public_ip_address = true
 
   tags = {
@@ -38,6 +38,8 @@ module "ec2_instance" {
 
 module "ec2_private_instance" {
 
+  count = var.private_ec2_count
+
   source = "terraform-aws-modules/ec2-instance/aws"
 
   name = "lb-microservice-ec2-private-1"
@@ -47,7 +49,7 @@ module "ec2_private_instance" {
   monitoring                  = true
   vpc_security_group_ids      = [module.ssg_sg.security_group_id, module.HTTP_sg.security_group_id]
   subnet_id                   = module.vpc.private_subnets[0]
-  ami                         = var.ami_id
+  ami                         = var.privare_ami_id
   associate_public_ip_address = true
 
   tags = {
@@ -73,7 +75,7 @@ module "alb" {
             redirect ={
                 port = 80
                 protocol = "HTTP"
-                path = "/api/login"
+                path = "/api/status"
                 status_code = "HTTP_301"
             }
 
@@ -81,7 +83,7 @@ module "alb" {
                 heating = {
                     actions = [{
                         type = "forward"
-                        target_group_key = "sh_heating_tg"
+                        target_group_key = "sh_1heating_tg"
                     }]
 
                     conditions = [{
@@ -94,7 +96,7 @@ module "alb" {
                 lights = {
                     actions = [{
                         type = "forward"
-                        target_group_key = "sh_lights_tg"
+                        target_group_key = "sh_2lights_tg"
                     }]
 
                     conditions = [{
@@ -107,7 +109,7 @@ module "alb" {
                 status = {
                     actions = [{
                         type = "forward"
-                        target_group_key = "sh_status_tg"
+                        target_group_key = "sh_3status_tg"
                     }]
 
                     conditions = [{
@@ -120,7 +122,7 @@ module "alb" {
                 auth = {
                     actions = [{
                         type = "forward"
-                        target_group_key = "sh_auth_tg"
+                        target_group_key = "sh_4auth_tg"
                     }]
 
                     conditions = [{
@@ -135,7 +137,7 @@ module "alb" {
 
 
   target_groups = {
-    sh_heating_tg = {
+    sh_1heating_tg = {
       name_prefix = "h1"
       protocol    = "HTTP"
       port        = 3000
@@ -152,7 +154,7 @@ module "alb" {
       port             = 3000
     }
 
-    sh_lights_tg = {
+    sh_2lights_tg = {
       name_prefix = "h1"
       protocol    = "HTTP"
       port        = 3000
@@ -163,7 +165,7 @@ module "alb" {
       port             = 3000
     }
 
-    sh_status_tg = {
+    sh_3status_tg = {
       name_prefix = "h1"
       protocol    = "HTTP"
       port        = 3000
@@ -174,7 +176,7 @@ module "alb" {
       port             = 3000
     }
 
-    sh_auth_tg = {
+    sh_4auth_tg = {
       name_prefix = "h1"
       protocol    = "HTTP"
       port        = 3000
@@ -187,7 +189,7 @@ module "alb" {
       }
 
       protocol_version = "HTTP1"
-      target_id        = module.ec2_private_instance.id
+      target_id        = module.ec2_private_instance[0].id
       port             = 3000
     }
   }
@@ -195,4 +197,34 @@ module "alb" {
   tags = {
     Environment = "Development"
   }
+}
+
+module "nat_gateway" {
+
+  source = "./modules/nat_gateway"
+
+  subnet_id = module.vpc.public_subnets[0]
+  vpc_id = module.vpc.vpc_id
+  private_rt_id = module.vpc.private_route_table_ids
+}
+
+module "launch_template" {
+  source = "./modules/launchTemplate"
+
+  instance_type = "t2.micro"
+  ami_ids = concat(var.public_ami_ids, [var.privare_ami_id])
+  subnet_ids = concat(module.vpc.public_subnets, [module.vpc.private_subnets[0]])
+  security_group_ids = [module.ssg_sg.security_group_id, module.HTTP_sg.security_group_id]
+}
+
+module "auto_scaling_group" {
+  source = "./modules/auto_scaling_group"
+
+  lt_ids = module.launch_template.lt_ids
+  desired_instances = 1
+  max_instances = 2
+  min_instances = 1
+  availability_zones = concat(var.availability_zones_euw, [var.availability_zones_euw[0]])
+  target_groups_map = module.alb.target_groups
+  target_groups_keys = keys(module.alb.target_groups)
 }
